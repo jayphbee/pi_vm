@@ -192,7 +192,9 @@ pub unsafe fn handle_async_callback(js: Arc<JS>, vm: *const c_void_ptr) {
         // 则需要将执行结果弹出值栈并改变状态并解锁当前虚拟机的同步任务队列, 保证虚拟机回收或执行下一个任务
         dukc_vm_status_sub(vm, 1);
         if js.exist_tasks() {
-            if !unlock_js_task_queue(js.get_tasks()) {
+            let t = js.get_tasks();
+            if !unlock_js_task_queue(t) {
+                println!("unlock js task queue: {:?}", t);
                 panic!("!!!> Handle Callback Error, unlock js task queue failed");
             }
         }
@@ -687,6 +689,7 @@ impl JS {
 
     //构建指定类型的对象，构建失败返回undefined
     pub fn new_type(&self, name: String, len: usize) -> JSType {
+        println!("pi_vm::new_type: name: {:?}, len: {:?}", name, len);
         let ptr: i32;
         let t = match name.as_str() {
             "Array" => JSValueType::Array as u8,
@@ -695,16 +698,19 @@ impl JS {
             _ => JSValueType::Object as u8,
         };
         unsafe { ptr = dukc_new_type(self.vm as *const c_void_ptr, len as u8) }
+        let res;
         if ptr < 0 {
-            self.new_undefined()
+            return self.new_undefined()
         } else {
-            JSType {
+            res = JSType {
                 type_id: t,
                 is_drop: false,
                 vm: self.vm,
                 value: ptr as usize,
             }
         }
+        println!("pi_vm::new_type: {:?}", res);
+        return res
     }
 
     //设置指定对象的域
@@ -946,7 +952,7 @@ type AJSType = Arc<JSType>;
 /*
 * js类型
 */
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct JSType {
     type_id:    u8,
     is_drop:    bool,
